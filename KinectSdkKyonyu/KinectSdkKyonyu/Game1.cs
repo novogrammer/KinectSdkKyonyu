@@ -52,7 +52,7 @@ namespace KinectSdkKyonyu
 #if USE_COLOR_MAP
         ColorImagePoint[] mappedColorData = new ColorImagePoint[640 * 480];
 #endif
-        Skeleton[] skeletonData = null;
+        Skeleton[] skeletonData = new Skeleton[0];
 
         //OpenNIで取得できた値
         static readonly int ZPD=120;
@@ -225,7 +225,6 @@ namespace KinectSdkKyonyu
         }
 
 
-
         /// <summary>
         /// ゲームが実行を開始する前に必要な初期化を行います。
         /// ここで、必要なサービスを照会して、関連するグラフィック以外のコンテンツを
@@ -234,7 +233,7 @@ namespace KinectSdkKyonyu
         /// </summary>
         protected override void Initialize()
         {
-            if(KinectSensor.KinectSensors.Count==0)
+            if (KinectSensor.KinectSensors.Count == 0)
             {
                 throw new Exception("Kinectが接続されていません。接続してください。");
             }
