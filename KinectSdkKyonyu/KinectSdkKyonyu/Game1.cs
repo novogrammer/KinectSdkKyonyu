@@ -1,5 +1,6 @@
 #define USE_COLOR_MAP
 //#define USE_PARALLEL
+//#define USE_READY_EVENT
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -74,7 +75,8 @@ namespace KinectSdkKyonyu
         const int WIDTH = 640;
         const int HEIGHT = 480;
 
-        const int stepCloud = 1;
+        //重たいときはここで調整
+        const int stepCloud = 8;//1,2,4,8
         VertexPositionColor[] vertexCloud = new VertexPositionColor[(HEIGHT * WIDTH / (stepCloud * stepCloud)) * 6];
         VertexBuffer vertexBufferCloud;
 
@@ -117,6 +119,9 @@ namespace KinectSdkKyonyu
                 center,
                 up
             );
+        }
+        void setupCloudVertex()
+        {
         }
         Color getColorAt(int inX,int inY)
         {
@@ -218,10 +223,6 @@ namespace KinectSdkKyonyu
                 vertexCloud.Length / 3
             );
         }
-        void drawUsers()
-        {
-            //TODO:OP
-        }
 
 
 
@@ -237,10 +238,11 @@ namespace KinectSdkKyonyu
             {
                 throw new Exception("Kinectが接続されていません。接続してください。");
             }
+            setupCloudVertex();
             kinectSensor = KinectSensor.KinectSensors[0];
-
+#if USE_READY_EVENT
             kinectSensor.AllFramesReady += new EventHandler<AllFramesReadyEventArgs>(kinectAllFramesReady);
-
+#endif
             kinectSensor.ColorStream.Enable(ColorImageFormat.RgbResolution640x480Fps30);
             kinectSensor.DepthStream.Enable(DepthImageFormat.Resolution640x480Fps30);
             kinectSensor.SkeletonStream.Enable();
@@ -305,7 +307,7 @@ namespace KinectSdkKyonyu
                     this.colorData[i * 4 + 2] = temp;
                     this.colorData[i * 4 + 3] = 255;
                 }
-                //kinectColorTextures[1 - renderingTexture].SetData(this.colorData);
+                kinectColorTextures[1 - renderingTexture].SetData(this.colorData);
 
                 if (inDepth != null)
                 {
@@ -367,27 +369,59 @@ namespace KinectSdkKyonyu
             // ゲームの終了条件をチェックします。
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
                 this.Exit();
-            //updateAllFrames(
-            //    kinectSensor.ColorStream.OpenNextFrame(0),
-            //    kinectSensor.DepthStream.OpenNextFrame(0),
-            //    kinectSensor.SkeletonStream.OpenNextFrame(0)
-            //);
-//            GC.Collect();
+#if !USE_READY_EVENT
+            using (ColorImageFrame color = kinectSensor.ColorStream.OpenNextFrame(0))
+            {
+                using (DepthImageFrame depth = kinectSensor.DepthStream.OpenNextFrame(0))
+                {
+                    using (SkeletonFrame skelton = kinectSensor.SkeletonStream.OpenNextFrame(0))
+                    {
+                        updateAllFrames(
+                            color,
+                            depth,
+                            skelton
+                        );
+                    }
+                }
+            }
+#endif
+            //GC.Collect();
             for (int i = 0; i < m_OpList.Length; ++i)
             {
                 m_OpList[i].clearTouching();
             }
-            //TODO:Skeltonとの連動
-            for (int i = 0; i < 1; ++i)
+            for (int i = 0; i < skeletonData.Length; ++i)
             {
-                Matrix m=Matrix.CreateTranslation(new Vector3(0,0,1000));
-                m_OpList[i].setPinnedMatrix(m);
-                m_OpList[i].update(1.0f/30);
-                if (m_OpList[i].isTouched())
+                if(skeletonData[i].TrackingState==SkeletonTrackingState.Tracked)
                 {
-                    //音を鳴らすとか・・
+                    for (int j = 0; j < MAX_NUMBER_USERS; ++j)
+                    {
+                        //他人のもタッチ
+                        //m_OpList[j].addTouching(pos, KANSETSU);
+                    }
                 }
             }
+
+            for (int i = 0; i < skeletonData.Length; ++i)
+            {
+                if (skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
+                {
+                    SkeletonPoint point=skeletonData[i].Joints[JointType.ShoulderCenter].Position;
+
+                    Matrix m = Matrix.CreateTranslation(new Vector3(point.X*-1000, point.Y*1000, point.Z*1000));
+                    m_OpList[i].setPinnedMatrix(m);
+                    m_OpList[i].update(1.0f / 30);
+                    if (m_OpList[i].isTouched())
+                    {
+                        //音を鳴らすとか・・
+                    }
+                    if (!m_OpTextureMap.ContainsKey(skeletonData[i].TrackingId))
+                    {
+                        //撮影する
+                    }
+                }
+            }
+
             
 
             base.Update(gameTime);
@@ -408,29 +442,26 @@ namespace KinectSdkKyonyu
             {
                 pass.Apply();
                 drawPointCloud();
-                drawUsers();
             }
             renderingTexture = 1 - renderingTexture;
             effectNormalTexture.Texture = kinectColorTextures[renderingTexture];
-            for (int i = 0; i < 1; ++i)
+            for (int i = 0; i < skeletonData.Length; ++i)
             {
-                m_OpList[i].prepareDraw(GraphicsDevice);
+                if (skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
+                {
+                    m_OpList[i].prepareDraw(GraphicsDevice);
+                }
             }
             foreach (var pass in effectNormalTexture.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                for (int i = 0; i < 1; ++i)
+                for (int i = 0; i < skeletonData.Length; ++i)
                 {
-                    m_OpList[i].drawPass(GraphicsDevice, effectNormalTexture);
+                    if (skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
+                    {
+                        m_OpList[i].drawPass(GraphicsDevice, effectNormalTexture);
+                    }
                 }
-#if false
-                GraphicsDevice.SetVertexBuffer(vertexBuffer);
-                GraphicsDevice.DrawPrimitives(
-                    PrimitiveType.TriangleList,
-                    0,
-                    vertices.Length / 3
-                );
-#endif
             }
             base.Draw(gameTime);
         }
