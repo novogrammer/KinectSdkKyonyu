@@ -48,6 +48,7 @@ namespace KinectSdkKyonyu
 
         const int OP_TEXTURE_WIDTH=256;
         const int OP_TEXTURE_HEIGHT=256;
+        const float KANSETSU = 150.0f;
 
         KinectSensor kinectSensor;
         byte[] colorData = new byte[WIDTH * HEIGHT * 4];
@@ -485,10 +486,20 @@ namespace KinectSdkKyonyu
             {
                 if(skeletonData[i].TrackingState==SkeletonTrackingState.Tracked)
                 {
-                    for (int j = 0; j < MAX_NUMBER_USERS; ++j)
+                    Vector3[] touchList = new Vector3[4]
                     {
-                        //他人のもタッチ
-                        //m_OpList[j].addTouching(pos, KANSETSU);
+                        toVector3(skeletonData[i].Joints[JointType.ElbowRight].Position),
+                        toVector3(skeletonData[i].Joints[JointType.ElbowLeft].Position),
+                        toVector3(skeletonData[i].Joints[JointType.HandRight].Position),
+                        toVector3(skeletonData[i].Joints[JointType.HandLeft].Position)
+                    };
+                    foreach (Vector3 pos in touchList)
+                    {
+                        for (int j = 0; j < MAX_NUMBER_USERS; ++j)
+                        {
+                            //他人のもタッチ
+                            m_OpList[j].addTouching(pos, KANSETSU);
+                        }
                     }
                 }
             }
