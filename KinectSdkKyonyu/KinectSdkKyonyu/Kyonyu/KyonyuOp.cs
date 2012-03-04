@@ -1,4 +1,5 @@
-﻿using System;
+﻿#define USE_PARALLEL
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,7 +8,10 @@ using Microsoft.Xna.Framework;
 namespace KinectSdkKyonyu.Kyonyu
 {
     using Touch = Tuple<Vector3, float>;
-using Microsoft.Xna.Framework.Graphics;
+#if USE_PARALLEL
+    using System.Threading.Tasks;
+#endif
+    using Microsoft.Xna.Framework.Graphics;
     class KyonyuOp : KyonyuMesh
     {
         public static readonly int COLS = 12;
@@ -219,6 +223,7 @@ using Microsoft.Xna.Framework.Graphics;
         public KyonyuOp()
 	    {
 		    putPointAndJoint();
+            transfer();
 	    }
         public void update(float inDt)
         {
@@ -234,17 +239,37 @@ using Microsoft.Xna.Framework.Graphics;
                 }
                 //フェーズを二つに分ける。力更新と位置更新
                 // update force
+#if USE_PARALLEL
+                Parallel.For(0, jointCount, i =>
+                {
+                    m_JointList[i].updateForce();
+                });
+#else
                 for(int i=0;i<jointCount;++i) {
                     m_JointList[i].updateForce();
                 }
+#endif
+#if USE_PARALLEL
+                Parallel.For(0, pointCount, i =>
+                {
+                    m_PointList[i].updateForce();
+                });
+#else
                 for(int i=0;i<pointCount;++i) {
                     m_PointList[i].updateForce();
                 }
+#endif
                 // update position
+#if USE_PARALLEL
+                Parallel.For(0, pointCount, i =>
+                {
+                    m_PointList[i].updatePosition(inDt / times);
+                });
+#else
                 for(int i=0;i<pointCount;++i) {
                     m_PointList[i].updatePosition(inDt/times);
                 }
-        
+#endif
             }
     
             //drawLine();

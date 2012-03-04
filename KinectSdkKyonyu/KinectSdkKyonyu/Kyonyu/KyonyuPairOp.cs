@@ -12,8 +12,9 @@ namespace KinectSdkKyonyu.Kyonyu
         const int OP_QTY = 2;
         KyonyuOp[] m_OpList = new KyonyuOp[OP_QTY] { new KyonyuOp(), new KyonyuOp() };
         Vector3 m_OpOffsetSide = new Vector3(75, 0, 0);
-        Vector3 m_OpOffsetFront = new Vector3(0, 100, 50);
-        Matrix m_OpRot=Matrix.CreateRotationY(MathHelper.Pi);
+        Vector3 m_OpOffsetFront = new Vector3(0, -200, 50);
+        //一致しているため、回転なし
+        Matrix m_OpRot=Matrix.Identity;
         Tuple<Texture2D,Texture2D> m_Texture;//cache
         public KyonyuPairOp()
         {
@@ -30,20 +31,25 @@ namespace KinectSdkKyonyu.Kyonyu
         }
         public void setPinnedMatrix(Matrix inPinnedMatrix)
         {
-            m_OpList[0].setPinnedMatrix(Matrix.CreateTranslation(getOffset(0))*m_OpRot*inPinnedMatrix);
-            m_OpList[1].setPinnedMatrix(Matrix.CreateTranslation(getOffset(1))*m_OpRot*inPinnedMatrix);
+            m_OpList[0].setPinnedMatrix(inPinnedMatrix * m_OpRot * Matrix.CreateTranslation(getOffset(0)));
+            m_OpList[1].setPinnedMatrix(inPinnedMatrix * m_OpRot * Matrix.CreateTranslation(getOffset(1)));
+
+            m_OpList[0].setPinnedMatrix(Matrix.CreateTranslation(getOffset(0)) * m_OpRot * inPinnedMatrix);
+            m_OpList[1].setPinnedMatrix(Matrix.CreateTranslation(getOffset(1)) * m_OpRot * inPinnedMatrix);
+
         }
-        public void prepareDraw(GraphicsDevice inDevice)
+        public void draw(GraphicsDevice inDevice,BasicEffect inEffect)
         {
-            m_OpList[0].prepareDraw(inDevice);
-            m_OpList[1].prepareDraw(inDevice);
-        }
-        public void drawPass(GraphicsDevice inDevice,BasicEffect inEffect)
-        {
-            inEffect.Texture = (m_Texture == null) ? (null) : (m_Texture.Item1);
-            m_OpList[0].drawPass(inDevice);
-            inEffect.Texture = (m_Texture == null) ? (null) : (m_Texture.Item2);
-            m_OpList[1].drawPass(inDevice);
+            for (int i = 0; i < 2; ++i)
+            {
+                m_OpList[i].prepareDraw(inDevice);
+                inEffect.Texture = (m_Texture == null) ? (null) : ((i == 0) ? m_Texture.Item1 : m_Texture.Item2);
+                foreach (var pass in inEffect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    m_OpList[i].drawPass(inDevice);
+                }
+            }
         }
         public void setTexture(Tuple<Texture2D, Texture2D> inTexture)
         {
