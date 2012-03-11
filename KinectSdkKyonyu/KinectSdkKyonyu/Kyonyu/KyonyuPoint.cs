@@ -9,6 +9,8 @@ namespace KinectSdkKyonyu.Kyonyu
     class KyonyuPoint
     {
         static readonly float GRAVITY_A = 9.8f * 1000;//[mm/(s*s)]
+        //
+//        static readonly float GRAVITY_A = 98.0f * 1000;//[mm/(s*s)]
         static readonly float AIR_FRICTION = 0.005f;//[N/(mm/s)]
         public Vector3 m_Position=new Vector3();//[mm]
         public Vector3 m_Velocity = new Vector3();//[mm/s]
@@ -32,7 +34,7 @@ namespace KinectSdkKyonyu.Kyonyu
             {
                 Vector3 a = m_Force/m_Mass;
                 a.Y -= GRAVITY_A;
-#if true
+#if false
                 m_Velocity+=a*inDt;
                 m_Position+=m_Velocity*inDt;
 #else

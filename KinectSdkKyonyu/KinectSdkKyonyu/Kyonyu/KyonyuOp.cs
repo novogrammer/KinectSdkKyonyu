@@ -17,7 +17,7 @@ namespace KinectSdkKyonyu.Kyonyu
         public static readonly int COLS = 12;
         public static readonly int ROWS = 6;
         public static readonly float RADIUS = 90;//[mm]
-        public static readonly float WARP_LENGTH = 100;//[mm]
+        public static readonly float WARP_LENGTH = 1000;//[mm]
         private List<KyonyuJoint> m_JointList;
         private List<KyonyuPoint> m_PointList;
         Matrix m_PinnedMatrix=Matrix.Identity;

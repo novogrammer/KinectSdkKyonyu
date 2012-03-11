@@ -157,8 +157,10 @@ namespace KinectSdkKyonyu
 #endif
             if ( z < 800)
             {
-                z = 800;//0.8[m]から
-            }else if (z > 4000)
+//                z = 800;//0.8[m]から
+                z = 4000;//4[m]まで
+            }
+            else if (z > 4000)
             {
                 z = 4000;//4[m]まで
             }
@@ -248,6 +250,7 @@ namespace KinectSdkKyonyu
             }
             setupCloudVertex();
             kinectSensor = KinectSensor.KinectSensors[0];
+
 #if USE_KINECT_THREAD
             Thread kinectThread = new Thread(() => 
             {
@@ -258,7 +261,14 @@ namespace KinectSdkKyonyu
 #endif
             kinectSensor.ColorStream.Enable(ColorImageFormat.RgbResolution640x480Fps30);
             kinectSensor.DepthStream.Enable(DepthImageFormat.Resolution640x480Fps30);
-            kinectSensor.SkeletonStream.Enable();
+            //積極的にノイズにより揺らす
+            TransformSmoothParameters smooth = new TransformSmoothParameters()
+            {
+                Correction=1.0f,
+                JitterRadius=0.0f,
+                Smoothing=0.0f
+            };
+            kinectSensor.SkeletonStream.Enable(smooth);
             kinectSensor.Start();
             base.Initialize();
         }
