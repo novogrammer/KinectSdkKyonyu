@@ -275,13 +275,16 @@ namespace KinectSdkKyonyu
             effectNormalTexture = new BasicEffect(GraphicsDevice)
             {
                 TextureEnabled = true,
-                AmbientLightColor = new Vector3(0.9f, 0.9f, 0.9f)
+                SpecularColor=new Vector3(0.0f,0.0f,0.0f),
+                DiffuseColor=new Vector3(1.0f,1.0f,1.0f),
+                AmbientLightColor = new Vector3(2.0f, 2.0f, 2.0f)
             };
+            effectNormalTexture.EnableDefaultLighting();
             effectNormalTexture.DirectionalLight0.Enabled = true;
             effectNormalTexture.DirectionalLight1.Enabled = false;
             effectNormalTexture.DirectionalLight2.Enabled = false;
             DirectionalLight light = effectNormalTexture.DirectionalLight0;
-            light.Direction = new Vector3(0.0f, -1.0f, -1.0f);
+            light.Direction = new Vector3(0.0f, -0.2f, 1.0f);
 
             effectColor = new BasicEffect(GraphicsDevice)
             {
@@ -494,52 +497,49 @@ namespace KinectSdkKyonyu
             {
                 m_OpList[i].clearTouching();
             }
-            if (skeletonData != null)
+            for (int i = 0; i < skeletonData.Length; ++i)
             {
-                for (int i = 0; i < skeletonData.Length; ++i)
+                if (skeletonData[i]!=null && skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
                 {
-                    if (skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
+                    Matrix mirrorMatrix = Matrix.CreateScale(new Vector3(-1, 1, 1));
+                    Vector3[] touchList = new Vector3[4]
                     {
-                        Matrix mirrorMatrix = Matrix.CreateScale(new Vector3(-1, 1, 1));
-                        Vector3[] touchList = new Vector3[4]
+                        Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.ElbowRight].Position),mirrorMatrix),
+                        Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.ElbowLeft].Position),mirrorMatrix),
+                        Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.HandRight].Position),mirrorMatrix),
+                        Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.HandLeft].Position),mirrorMatrix)
+                    };
+                    foreach (Vector3 pos in touchList)
+                    {
+                        for (int j = 0; j < MAX_NUMBER_USERS; ++j)
                         {
-                            Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.ElbowRight].Position),mirrorMatrix),
-                            Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.ElbowLeft].Position),mirrorMatrix),
-                            Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.HandRight].Position),mirrorMatrix),
-                            Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.HandLeft].Position),mirrorMatrix)
-                        };
-                        foreach (Vector3 pos in touchList)
-                        {
-                            for (int j = 0; j < MAX_NUMBER_USERS; ++j)
-                            {
-                                //他人のもタッチ
-                                m_OpList[j].addTouching(pos, KANSETSU);
-                            }
+                            //他人のもタッチ
+                            m_OpList[j].addTouching(pos, KANSETSU);
                         }
                     }
                 }
+            }
 
-                for (int i = 0; i < skeletonData.Length; ++i)
+            for (int i = 0; i < skeletonData.Length; ++i)
+            {
+                if (skeletonData[i]!=null && skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
                 {
-                    if (skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
-                    {
-                        Matrix opMatrix = getOpMatrix(skeletonData[i]) * Matrix.CreateScale(new Vector3(-1, 1, 1));
+                    Matrix opMatrix = getOpMatrix(skeletonData[i]) * Matrix.CreateScale(new Vector3(-1, 1, 1));
 
-                        m_OpList[i].setPinnedMatrix(opMatrix);
-                        //Console.WriteLine(opMatrix.ToString());
-                        m_OpList[i].update(1.0f / 30);
-                        if (m_OpList[i].isTouched())
-                        {
-                            //音を鳴らすとか・・
-                        }
-                        if (!m_OpTextureMap.ContainsKey(skeletonData[i].TrackingId))
-                        {
-                            //撮影する
-                            Texture2D t1 = capture(m_OpList[i].getBound(0), opMatrix);
-                            Texture2D t2 = capture(m_OpList[i].getBound(1), opMatrix);
-                            m_OpTextureMap[skeletonData[i].TrackingId] = new OpTexture(t1, t2);
-                            m_OpList[i].setTexture(m_OpTextureMap[skeletonData[i].TrackingId]);
-                        }
+                    m_OpList[i].setPinnedMatrix(opMatrix);
+                    //Console.WriteLine(opMatrix.ToString());
+                    m_OpList[i].update(1.0f / 30);
+                    if (m_OpList[i].isTouched())
+                    {
+                        //音を鳴らすとか・・
+                    }
+                    if (!m_OpTextureMap.ContainsKey(skeletonData[i].TrackingId))
+                    {
+                        //撮影する
+                        Texture2D t1 = capture(m_OpList[i].getBound(0), opMatrix);
+                        Texture2D t2 = capture(m_OpList[i].getBound(1), opMatrix);
+                        m_OpTextureMap[skeletonData[i].TrackingId] = new OpTexture(t1, t2);
+                        m_OpList[i].setTexture(m_OpTextureMap[skeletonData[i].TrackingId]);
                     }
                 }
             }
@@ -580,7 +580,7 @@ namespace KinectSdkKyonyu
             effectNormalTexture.Texture = kinectColorTexture;
             for (int i = 0; i < skeletonData.Length; ++i)
             {
-                if (skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
+                if (skeletonData[i]!=null && skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
                 {
                     m_OpList[i].draw(GraphicsDevice, effectNormalTexture);
                 }
