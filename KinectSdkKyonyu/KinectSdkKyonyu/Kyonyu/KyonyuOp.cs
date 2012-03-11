@@ -318,7 +318,7 @@ namespace KinectSdkKyonyu.Kyonyu
                 KyonyuPoint p=m_PointList[i];
                 if(!(p.m_IsPinned || p.m_IsDragging))
                 {
-                    closest=Math.Max(closest,(p.m_Position-inPosition).Length());
+                    closest=MathHelper.Max(closest,(p.m_Position-inPosition).Length());
                     if((p.m_Position-inPosition).Length()<inRadius)
                     {
                         Vector3 n = (p.m_Position - inPosition);

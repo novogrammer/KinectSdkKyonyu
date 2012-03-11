@@ -1,6 +1,8 @@
 #define USE_COLOR_MAP
 #define USE_PARALLEL
-//#define USE_READY_EVENT
+//↓ 両方なしまたは片方ずつ
+#define USE_KINECT_THREAD
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,6 +20,9 @@ namespace KinectSdkKyonyu
 {
     using OpTexture = Tuple<Texture2D, Texture2D>;
     using OpTextureMap = Dictionary<int, Tuple<Texture2D, Texture2D>>;
+#if USE_KINECT_THREAD
+    using System.Threading;
+#endif
 #if USE_PARALLEL
     using System.Threading.Tasks;
 #endif
@@ -51,6 +56,7 @@ namespace KinectSdkKyonyu
         const float KANSETSU = 150.0f;
 
         KinectSensor kinectSensor;
+        byte[] colorKinectData = new byte[WIDTH * HEIGHT * 4];
         byte[] colorData = new byte[WIDTH * HEIGHT * 4];
         short[] depthData = new short[WIDTH * HEIGHT];
         ColorImagePoint[] mappedDepthData = new ColorImagePoint[WIDTH * HEIGHT];
@@ -80,7 +86,7 @@ namespace KinectSdkKyonyu
         };
 
         //重たいときはここで調整
-        const int stepCloud = 4;//1,2,4,8
+        const int stepCloud = 2;//1,2,4,8
         VertexPositionColor[] vertexCloud = new VertexPositionColor[(HEIGHT * WIDTH / (stepCloud * stepCloud)) * 6];
         VertexBuffer vertexBufferCloud;
 
@@ -112,9 +118,7 @@ namespace KinectSdkKyonyu
 	        Vector3 center=new Vector3(0,0,1500);//1.5[m]
 	        Vector3 up=new Vector3(0,1,0);
 	        Matrix rot=Matrix.CreateRotationY(MathHelper.ToRadians(m_RotY));
-
             Vector3 eye =  Vector3.Transform((eyeOrg - center), rot) + center;
-
             //DirectXはModelとViewが分かれている
             effectColor.View = effectNormalTexture.View = Matrix.CreateLookAt
             (
@@ -135,8 +139,8 @@ namespace KinectSdkKyonyu
             int ofs = bytesPerLine * inY + bytesPerPixel * inX;
 #else
             ColorImagePoint imagePoint = mappedDepthData[WIDTH * inY + inX];
-            imagePoint.X =Math.Max(Math.Min(imagePoint.X, WIDTH-1), 0);
-            imagePoint.Y =Math.Max(Math.Min(imagePoint.Y, HEIGHT-1), 0);
+            imagePoint.X = (int)MathHelper.Clamp(imagePoint.X, 0, WIDTH - 1);
+            imagePoint.Y = (int)MathHelper.Clamp(imagePoint.Y, 0, HEIGHT - 1);
             int ofs = bytesPerLine * imagePoint.Y + bytesPerPixel * imagePoint.X;
 #endif
             Color color = new Color(colorData[ofs + 0], colorData[ofs + 1], colorData[ofs + 2]);
@@ -164,33 +168,32 @@ namespace KinectSdkKyonyu
         void drawPointCloud()
         {
 #if USE_PARALLEL
-            Parallel.For(0, HEIGHT / stepCloud, y =>
+            Parallel.For(0, (HEIGHT / stepCloud) * (WIDTH / stepCloud), i =>
             {
-                Parallel.For(0, WIDTH / stepCloud, x =>
-                {
-                    Vector3 pos = getWorldCoordinateAt(x * stepCloud, y * stepCloud);
-                    pos.X *= -1;//ミラー表示する
-                    Color col = getColorAt(x * stepCloud, y * stepCloud);
+                int x = i % (WIDTH / stepCloud);
+                int y = i / (WIDTH / stepCloud);
+                Vector3 pos = getWorldCoordinateAt(x * stepCloud, y * stepCloud);
+                pos.X *= -1;//ミラー表示する
+                Color col = getColorAt(x * stepCloud, y * stepCloud);
 
-                    const float s = stepCloud * 0.5f;
-                    float sz = 1 * m_PixelToXY * pos.Z * s;
+                const float s = stepCloud * 0.5f;
+                float sz = 1 * m_PixelToXY * pos.Z * s;
 
-                    Vector3 p1 = pos + new Vector3(-sz, -sz, 0);
-                    Vector3 p2 = pos + new Vector3(+sz, -sz, 0);
-                    Vector3 p3 = pos + new Vector3(+sz, +sz, 0);
-                    Vector3 p4 = pos + new Vector3(-sz, +sz, 0);
+                Vector3 p1 = pos + new Vector3(-sz, -sz, 0);
+                Vector3 p2 = pos + new Vector3(+sz, -sz, 0);
+                Vector3 p3 = pos + new Vector3(+sz, +sz, 0);
+                Vector3 p4 = pos + new Vector3(-sz, +sz, 0);
 
-                    int i = y * WIDTH/stepCloud  + x;
-                    //DirectXなので頂点の順番を変える
-                    vertexCloud[i * 6 + 0] = new VertexPositionColor(p1, col);
-                    vertexCloud[i * 6 + 1] = new VertexPositionColor(p2, col);
-                    vertexCloud[i * 6 + 2] = new VertexPositionColor(p3, col);
-                    vertexCloud[i * 6 + 3] = new VertexPositionColor(p3, col);
-                    vertexCloud[i * 6 + 4] = new VertexPositionColor(p4, col);
-                    vertexCloud[i * 6 + 5] = new VertexPositionColor(p1, col);
-
-                });
+                //DirectXなので頂点の順番を変える
+                vertexCloud[i * 6 + 0] = new VertexPositionColor(p1, col);
+                vertexCloud[i * 6 + 1] = new VertexPositionColor(p2, col);
+                vertexCloud[i * 6 + 2] = new VertexPositionColor(p3, col);
+                vertexCloud[i * 6 + 3] = new VertexPositionColor(p3, col);
+                vertexCloud[i * 6 + 4] = new VertexPositionColor(p4, col);
+                vertexCloud[i * 6 + 5] = new VertexPositionColor(p1, col);
+                
             });
+            
 #else
             for (int y = 0; y < HEIGHT; y += stepCloud)
             {
@@ -245,8 +248,13 @@ namespace KinectSdkKyonyu
             }
             setupCloudVertex();
             kinectSensor = KinectSensor.KinectSensors[0];
-#if USE_READY_EVENT
-            kinectSensor.AllFramesReady += new EventHandler<AllFramesReadyEventArgs>(kinectAllFramesReady);
+#if USE_KINECT_THREAD
+            Thread kinectThread = new Thread(() => 
+            {
+                kinectSensor.AllFramesReady += new EventHandler<AllFramesReadyEventArgs>(kinectAllFramesReady);
+            });
+            kinectThread.Start();
+            kinectThread.Join();
 #endif
             kinectSensor.ColorStream.Enable(ColorImageFormat.RgbResolution640x480Fps30);
             kinectSensor.DepthStream.Enable(DepthImageFormat.Resolution640x480Fps30);
@@ -266,9 +274,15 @@ namespace KinectSdkKyonyu
 
             effectNormalTexture = new BasicEffect(GraphicsDevice)
             {
-                TextureEnabled = true
+                TextureEnabled = true,
+                AmbientLightColor = new Vector3(0.9f, 0.9f, 0.9f)
             };
-            effectNormalTexture.EnableDefaultLighting();
+            effectNormalTexture.DirectionalLight0.Enabled = true;
+            effectNormalTexture.DirectionalLight1.Enabled = false;
+            effectNormalTexture.DirectionalLight2.Enabled = false;
+            DirectionalLight light = effectNormalTexture.DirectionalLight0;
+            light.Direction = new Vector3(0.0f, -1.0f, -1.0f);
+
             effectColor = new BasicEffect(GraphicsDevice)
             {
                 VertexColorEnabled = true
@@ -317,16 +331,14 @@ namespace KinectSdkKyonyu
         {
             if(inColor!=null)
             {
-                inColor.CopyPixelDataTo(this.colorData);
+                inColor.CopyPixelDataTo(this.colorKinectData);
                 for (int i = 0; i < this.colorData.Length/4;++i)
                 {
-                    byte temp=this.colorData[i * 4 + 0];
-                    this.colorData[i * 4 + 0] = this.colorData[i * 4 + 2];
-                    this.colorData[i * 4 + 2] = temp;
+                    this.colorData[i * 4 + 0] = this.colorKinectData[i * 4 + 2];
+                    this.colorData[i * 4 + 1] = this.colorKinectData[i * 4 + 1];
+                    this.colorData[i * 4 + 2] = this.colorKinectData[i * 4 + 0];
                     this.colorData[i * 4 + 3] = 255;
                 }
-                GraphicsDevice.Textures[0] = null;
-                kinectColorTexture.SetData(this.colorData);
 
                 if (inDepth != null)
                 {
@@ -337,8 +349,8 @@ namespace KinectSdkKyonyu
                     Parallel.For(0, mappedDepthData.Length, i =>
                     {
                         ColorImagePoint imagePoint = mappedDepthData[i];
-                        imagePoint.X = Math.Max(Math.Min(imagePoint.X, WIDTH - 1), 0);
-                        imagePoint.Y = Math.Max(Math.Min(imagePoint.Y, HEIGHT - 1), 0);
+                        imagePoint.X = (int)MathHelper.Clamp(imagePoint.X, 0, WIDTH - 1);
+                        imagePoint.Y = (int)MathHelper.Clamp(imagePoint.Y, 0, HEIGHT - 1);
                         mappedColorData[imagePoint.Y * WIDTH + imagePoint.X].X = i % WIDTH;
                         mappedColorData[imagePoint.Y * WIDTH + imagePoint.X].Y = i / WIDTH;
                     });
@@ -346,8 +358,8 @@ namespace KinectSdkKyonyu
                     for(int i=0;i<mappedDepthData.Length;++i)
                     {
                         ColorImagePoint imagePoint = mappedDepthData[i];
-                        imagePoint.X =Math.Max(Math.Min(imagePoint.X, WIDTH-1), 0);
-                        imagePoint.Y =Math.Max(Math.Min(imagePoint.Y, HEIGHT-1), 0);
+                        imagePoint.X = (int)MathHelper.Clamp(imagePoint.X, 0, WIDTH - 1);
+                        imagePoint.Y = (int)MathHelper.Clamp(imagePoint.Y, 0, HEIGHT - 1);
                         mappedColorData[imagePoint.Y * WIDTH + imagePoint.X].X=i%WIDTH;
                         mappedColorData[imagePoint.Y * WIDTH + imagePoint.X].Y=i/WIDTH;
                     }
@@ -461,7 +473,7 @@ namespace KinectSdkKyonyu
             // ゲームの終了条件をチェックします。
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
                 this.Exit();
-#if !USE_READY_EVENT
+#if !USE_KINECT_THREAD
             using (ColorImageFrame color = kinectSensor.ColorStream.OpenNextFrame(0))
             {
                 using (DepthImageFrame depth = kinectSensor.DepthStream.OpenNextFrame(0))
@@ -482,57 +494,69 @@ namespace KinectSdkKyonyu
             {
                 m_OpList[i].clearTouching();
             }
-            for (int i = 0; i < skeletonData.Length; ++i)
+            if (skeletonData != null)
             {
-                if(skeletonData[i].TrackingState==SkeletonTrackingState.Tracked)
+                for (int i = 0; i < skeletonData.Length; ++i)
                 {
-                    Vector3[] touchList = new Vector3[4]
+                    if (skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
                     {
-                        toVector3(skeletonData[i].Joints[JointType.ElbowRight].Position),
-                        toVector3(skeletonData[i].Joints[JointType.ElbowLeft].Position),
-                        toVector3(skeletonData[i].Joints[JointType.HandRight].Position),
-                        toVector3(skeletonData[i].Joints[JointType.HandLeft].Position)
-                    };
-                    foreach (Vector3 pos in touchList)
-                    {
-                        for (int j = 0; j < MAX_NUMBER_USERS; ++j)
+                        Matrix mirrorMatrix = Matrix.CreateScale(new Vector3(-1, 1, 1));
+                        Vector3[] touchList = new Vector3[4]
                         {
-                            //他人のもタッチ
-                            m_OpList[j].addTouching(pos, KANSETSU);
+                            Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.ElbowRight].Position),mirrorMatrix),
+                            Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.ElbowLeft].Position),mirrorMatrix),
+                            Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.HandRight].Position),mirrorMatrix),
+                            Vector3.Transform(toVector3(skeletonData[i].Joints[JointType.HandLeft].Position),mirrorMatrix)
+                        };
+                        foreach (Vector3 pos in touchList)
+                        {
+                            for (int j = 0; j < MAX_NUMBER_USERS; ++j)
+                            {
+                                //他人のもタッチ
+                                m_OpList[j].addTouching(pos, KANSETSU);
+                            }
+                        }
+                    }
+                }
+
+                for (int i = 0; i < skeletonData.Length; ++i)
+                {
+                    if (skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
+                    {
+                        Matrix opMatrix = getOpMatrix(skeletonData[i]) * Matrix.CreateScale(new Vector3(-1, 1, 1));
+
+                        m_OpList[i].setPinnedMatrix(opMatrix);
+                        //Console.WriteLine(opMatrix.ToString());
+                        m_OpList[i].update(1.0f / 30);
+                        if (m_OpList[i].isTouched())
+                        {
+                            //音を鳴らすとか・・
+                        }
+                        if (!m_OpTextureMap.ContainsKey(skeletonData[i].TrackingId))
+                        {
+                            //撮影する
+                            Texture2D t1 = capture(m_OpList[i].getBound(0), opMatrix);
+                            Texture2D t2 = capture(m_OpList[i].getBound(1), opMatrix);
+                            m_OpTextureMap[skeletonData[i].TrackingId] = new OpTexture(t1, t2);
+                            m_OpList[i].setTexture(m_OpTextureMap[skeletonData[i].TrackingId]);
                         }
                     }
                 }
             }
 
-            for (int i = 0; i < skeletonData.Length; ++i)
-            {
-                if (skeletonData[i].TrackingState == SkeletonTrackingState.Tracked)
-                {
-                    Matrix opMatrix=getOpMatrix(skeletonData[i])*Matrix.CreateScale(new Vector3(-1,1,1));
-                    
-                    m_OpList[i].setPinnedMatrix(opMatrix);
-                    //Console.WriteLine(opMatrix.ToString());
-                    m_OpList[i].update(1.0f / 30);
-                    if (m_OpList[i].isTouched())
-                    {
-                        //音を鳴らすとか・・
-                    }
-                    if (!m_OpTextureMap.ContainsKey(skeletonData[i].TrackingId))
-                    {
-                        //撮影する
-                        Texture2D t1 = capture(m_OpList[i].getBound(0),opMatrix);
-                        Texture2D t2 = capture(m_OpList[i].getBound(1),opMatrix);
-                        m_OpTextureMap[skeletonData[i].TrackingId] = new OpTexture(t1, t2);
-                        m_OpList[i].setTexture(m_OpTextureMap[skeletonData[i].TrackingId]);
-                    }
-                }
-            }
-
-            
-
+#if DEBUG
+            //DateTime d = DateTime.UtcNow;
+            //if (previousUpdate != null)
+            //{
+            //    Console.WriteLine("update" + (d - previousUpdate).TotalMilliseconds.ToString());
+            //}
+            //previousUpdate = d;
+#endif
             base.Update(gameTime);
         }
-
+#if DEBUG
+        DateTime previousUpdate;
+#endif
 
         /// <summary>
         /// ゲームが自身を描画するためのメソッドです。
@@ -544,6 +568,10 @@ namespace KinectSdkKyonyu
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             setupPerspective();
             setupModelView();
+
+            GraphicsDevice.Textures[0] = null;
+            kinectColorTexture.SetData(this.colorData);
+
             foreach (var pass in effectColor.CurrentTechnique.Passes)
             {
                 pass.Apply();
@@ -557,7 +585,18 @@ namespace KinectSdkKyonyu
                     m_OpList[i].draw(GraphicsDevice, effectNormalTexture);
                 }
             }
+#if DEBUG
+            //DateTime d = DateTime.UtcNow;
+            //if (previousDraw != null)
+            //{
+            //    Console.WriteLine("draw" + (d - previousDraw).TotalMilliseconds.ToString());
+            //}
+            //previousDraw = d;
+#endif
             base.Draw(gameTime);
         }
+#if DEBUG
+        DateTime previousDraw;
+#endif
     }
 }
