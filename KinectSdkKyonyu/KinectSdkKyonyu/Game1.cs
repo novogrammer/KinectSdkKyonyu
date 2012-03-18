@@ -1,6 +1,5 @@
 #define USE_COLOR_MAP
 #define USE_PARALLEL
-//↓ 両方なしまたは片方ずつ
 #define USE_KINECT_THREAD
 
 using System;
@@ -155,12 +154,7 @@ namespace KinectSdkKyonyu
 #else
             short z =(short)( depthData[line * inY + inX]/8);
 #endif
-            if ( z < 800)
-            {
-//                z = 800;//0.8[m]から
-                z = 4000;//4[m]まで
-            }
-            else if (z > 4000)
+            if (z < 800 || z > 4000)
             {
                 z = 4000;//4[m]まで
             }
