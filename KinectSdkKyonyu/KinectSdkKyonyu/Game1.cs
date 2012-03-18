@@ -477,9 +477,20 @@ namespace KinectSdkKyonyu
         /// <param name="gameTime">ゲームの瞬間的なタイミング情報</param>
         protected override void Update(GameTime gameTime)
         {
-            // ゲームの終了条件をチェックします。
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
+            if (
+                (Keyboard.GetState().IsKeyDown(Keys.Escape))
+            )
+            {
                 this.Exit();
+            }
+            
+            if(
+                (Keyboard.GetState().IsKeyDown(Keys.Space))||
+                (Mouse.GetState().LeftButton == ButtonState.Pressed)
+            )
+            {
+                graphics.ToggleFullScreen();
+            }
 #if !USE_KINECT_THREAD
             using (ColorImageFrame color = kinectSensor.ColorStream.OpenNextFrame(0))
             {

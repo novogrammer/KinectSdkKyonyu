@@ -17,6 +17,7 @@ http://www.microsoft.com/en-us/kinectforwindows/develop/overview.aspx
 ・あらかじめXNA4.0とKinect SDKに入門しておく
 ・KinectSdkKyonyu.slnを開く
 ・実行する
+・Spaceでフルスクリーン切り替え、Escapeキーで終了
 
 
 setupディレクトリ：
