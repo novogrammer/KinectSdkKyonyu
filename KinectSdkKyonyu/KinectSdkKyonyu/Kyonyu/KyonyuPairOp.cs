@@ -12,7 +12,7 @@ namespace KinectSdkKyonyu.Kyonyu
         const int OP_QTY = 2;
         KyonyuOp[] m_OpList = new KyonyuOp[OP_QTY] { new KyonyuOp(), new KyonyuOp() };
         Vector3 m_OpOffsetSide = new Vector3(75, 0, 0);
-        Vector3 m_OpOffsetFront = new Vector3(0, -200, 75);
+        Vector3 m_OpOffsetFront = new Vector3(0, -250, 70);
         //一致しているため、回転なし
         Matrix m_OpRot=Matrix.Identity;
         Tuple<Texture2D,Texture2D> m_Texture;//cache

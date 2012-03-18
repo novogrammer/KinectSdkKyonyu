@@ -491,6 +491,23 @@ namespace KinectSdkKyonyu
             {
                 graphics.ToggleFullScreen();
             }
+            try
+            {
+                if (Keyboard.GetState().IsKeyDown(Keys.Up))
+                {
+                    kinectSensor.ElevationAngle =
+                        (int)MathHelper.Clamp(kinectSensor.ElevationAngle + 2, kinectSensor.MinElevationAngle, kinectSensor.MaxElevationAngle);
+                }
+                else if (Keyboard.GetState().IsKeyDown(Keys.Down))
+                {
+                    kinectSensor.ElevationAngle =
+                        (int)MathHelper.Clamp(kinectSensor.ElevationAngle - 2, kinectSensor.MinElevationAngle, kinectSensor.MaxElevationAngle);
+                }
+            }
+            catch(Exception)
+            {
+                //もみ消す
+            }
 #if !USE_KINECT_THREAD
             using (ColorImageFrame color = kinectSensor.ColorStream.OpenNextFrame(0))
             {

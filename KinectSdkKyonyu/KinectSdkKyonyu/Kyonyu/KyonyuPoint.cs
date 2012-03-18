@@ -10,7 +10,7 @@ namespace KinectSdkKyonyu.Kyonyu
     {
         static readonly float GRAVITY_A = 9.8f * 1000;//[mm/(s*s)]
         //
-//        static readonly float GRAVITY_A = 98.0f * 1000;//[mm/(s*s)]
+        //        static readonly float GRAVITY_A = 98.0f * 1000;//[mm/(s*s)]
         static readonly float AIR_FRICTION = 0.005f;//[N/(mm/s)]
         public Vector3 m_Position=new Vector3();//[mm]
         public Vector3 m_Velocity = new Vector3();//[mm/s]
